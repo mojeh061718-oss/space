@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Meridian — Orbital Flight Simulator</title>
+  <meta name="description" content="Realistic orbital rocket simulator. Launch, reach orbit, come home.">
+  <meta name="theme-color" content="#060b14">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <!-- iOS PWA -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Meridian">
+  <link rel="apple-touch-icon" href="./icons/icon-180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <canvas id="c"></canvas>
+
+  <!-- top bar -->
+  <div id="topbar" class="ui">
+    <div id="met" class="mono">T−READY</div>
+    <div id="warp-ctl">
+      <button id="warp-down" class="chip">−</button>
+      <span id="warp-val" class="mono">1×</span>
+      <button id="warp-up" class="chip">+</button>
+    </div>
+    <div class="top-right">
+      <button id="btn-snd" class="chip wide">SND</button>
+      <button id="btn-map" class="chip wide">MAP</button>
+      <button id="btn-restart" class="chip wide">RST</button>
+    </div>
+  </div>
+
+  <!-- mission control feed -->
+  <div id="msgs" class="ui"></div>
+
+  <!-- telemetry -->
+  <div id="stats" class="ui mono">
+    <div class="row"><span>ALT</span><b id="v-alt">—</b></div>
+    <div class="row"><span>VEL</span><b id="v-vel">—</b></div>
+    <div class="row opt"><span>V/S</span><b id="v-vsi">—</b></div>
+    <div class="row sep"><span>AP</span><b id="v-ap" class="c-ap">—</b></div>
+    <div class="row"><span>PE</span><b id="v-pe" class="c-pe">—</b></div>
+    <div class="row opt"><span id="lbl-tap">→AP</span><b id="v-tap">—</b></div>
+    <div class="row sep"><span>TWR</span><b id="v-twr">—</b></div>
+    <div class="row"><span>ΔV</span><b id="v-dv">—</b></div>
+    <div class="row opt"><span>G</span><b id="v-g">—</b></div>
+    <div class="row opt"><span>PITCH</span><b id="v-pitch">—</b></div>
+    <div class="row sep stage-row">
+      <span id="v-stage">Stage I</span>
+      <div id="fuel-bar"><div id="fuel-fill"></div></div>
+    </div>
+  </div>
+
+  <!-- right controls: throttle + stage -->
+  <div id="right-ui" class="ui">
+    <button id="btn-wap" class="chip hidden">⇥ AP</button>
+    <button id="thr-full" class="chip">FULL</button>
+    <div id="throttle">
+      <div id="throttle-fill"></div>
+      <span id="throttle-pct" class="mono">0%</span>
+    </div>
+    <button id="thr-cut" class="chip">CUT</button>
+    <button id="btn-stage"><span id="stage-label">IGNITE</span><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="18"/></svg></button>
+    <button id="btn-chute" class="hidden">CHUTE</button>
+  </div>
+
+  <!-- left controls: joystick + roll + SAS -->
+  <div id="left-ui" class="ui">
+    <div id="sas">
+      <button id="sas-hold" class="chip">HOLD</button>
+      <button id="sas-pro" class="chip">PRO</button>
+      <button id="sas-retro" class="chip">RETRO</button>
+    </div>
+    <div id="joy"><div id="joy-knob"></div></div>
+    <div id="roll">
+      <button id="roll-l" class="chip roll-chip">⟲</button>
+      <button id="roll-r" class="chip roll-chip">⟳</button>
+    </div>
+  </div>
+
+  <!-- attitude indicator -->
+  <canvas id="navball" class="ui" width="96" height="96"></canvas>
+
+  <!-- vehicle assembly -->
+  <div id="vab-overlay" class="ui hidden">
+    <div id="vab-panel">
+      <h2>VEHICLE ASSEMBLY</h2>
+      <div id="vab-statbar" class="mono">
+        <div><span>MASS</span><b id="vab-mass">—</b></div>
+        <div><span>ΔV</span><b id="vab-dv">—</b></div>
+        <div><span>PAD TWR</span><b id="vab-twr">—</b></div>
+      </div>
+      <div id="vab-stages"></div>
+      <button id="vab-add" class="chip">+ BOOSTER STAGE</button>
+      <div id="vab-warn"></div>
+      <button id="vab-launch">TO THE PAD</button>
+    </div>
+  </div>
+
+  <!-- start overlay -->
+  <div id="start-overlay" class="overlay">
+    <div class="panel">
+      <h1>MERIDIAN</h1>
+      <p class="sub">ORBITAL FLIGHT SIMULATOR</p>
+      <p>Meridian 1 is fueled on LC-1 with three crew aboard. Your mission:
+      reach a stable orbit above 140 km, then bring the crew home.</p>
+      <ul>
+        <li><b>Throttle up</b>, then hold <b>IGNITE</b> to launch.</li>
+        <li>Climb vertically to ~1 km, then <b>pitch east</b> (joystick up) gradually — about 45° by 12 km.</li>
+        <li>At apoapsis 200+ km, <b>CUT</b> throttle, coast to AP, then burn <b>PRO</b>grade until PE is above 140 km.</li>
+        <li>To come home: burn <b>RETRO</b> until PE drops to ~30 km, stage the capsule off, hold RETRO, chutes below 7 km.</li>
+      </ul>
+      <p class="dim">Drag to orbit the camera, pinch to zoom. Hold the joystick to steer.
+      On the attitude ball: <span style="color:#43e97b">●</span> prograde,
+      <span style="color:#ffa02e">✕</span> retrograde.</p>
+      <p class="dim hidden" id="record-line"></p>
+      <div id="tod-row">
+        <span class="tod-label">LAUNCH TIME</span>
+        <button class="chip tod" data-tod="dawn">DAWN</button>
+        <button class="chip tod active" data-tod="day">DAY</button>
+        <button class="chip tod" data-tod="dusk">DUSK</button>
+        <button class="chip tod" data-tod="night">NIGHT</button>
+      </div>
+      <button id="btn-begin">BEGIN MISSION</button>
+      <button id="btn-vab-open" class="secondary">VEHICLE ASSEMBLY</button>
+    </div>
+  </div>
+
+  <!-- end overlay -->
+  <div id="end-overlay" class="overlay hidden">
+    <div class="panel">
+      <h1 id="end-title">MISSION COMPLETE</h1>
+      <p id="end-body"></p>
+      <div id="end-stats"></div>
+      <button id="end-restart">FLY AGAIN</button>
+      <button id="end-vab" class="secondary">VEHICLE ASSEMBLY</button>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
