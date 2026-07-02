@@ -1,5 +1,9 @@
 name: Deploy to GitHub Pages
 
+# Publishes the app to the gh-pages branch, which GitHub Pages serves.
+# (The artifact-based Pages deploy needs the site pre-enabled with admin
+# rights the workflow token doesn't have; branch publishing does not.)
+
 on:
   push:
     branches:
@@ -8,9 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
@@ -30,19 +32,17 @@ jobs:
   deploy:
     needs: test
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp -r index.html style.css manifest.webmanifest sw.js src vendor icons _site/
+          touch _site/.nojekyll
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          enablement: true
-      - name: Upload site
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
+          force_orphan: true
+          commit_message: 'Publish site from ${{ github.sha }}'
