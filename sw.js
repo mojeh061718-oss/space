@@ -1,6 +1,6 @@
 // Cache-first service worker: the whole app is precached on install so it
 // runs offline after the first visit.
-const VERSION = 'meridian-v2';
+const VERSION = 'meridian-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -18,6 +18,8 @@ const ASSETS = [
   './src/hud.js',
   './src/navball.js',
   './src/audio.js',
+  './src/craft.js',
+  './src/vab.js',
   './vendor/three.module.min.js',
   './vendor/three.core.min.js',
   './icons/icon-180.png',

@@ -21,12 +21,30 @@ Screen*. The app runs fullscreen (standalone), respects the notch/Dynamic
 Island and home-indicator safe areas, and works offline after the first
 visit (service-worker precache).
 
+## Building your rocket
+
+Tap **VAB** (pre-launch) or **VEHICLE ASSEMBLY** on the title screen to
+open the assembly building — the pad camera orbits your craft live while
+you edit it. Stack up to four booster stages under the crew capsule:
+
+- **Engines** — M-90 Kestrel (kerolox workhorse), M-90V Vacuum, HL-120
+  Hydra (hydrolox, Isp 451), T-1600 Titanhawk (heavy booster) — each with
+  real-ish thrust/Isp/mass, cluster counts up to ×9
+- **Tanks** — S through XXL (30 t to 396 t of propellant; stage length
+  and dry mass follow from tank volume)
+- **Capsules** — Pilgrim (3 crew) or the lighter Sparrow (2 crew)
+
+Per-stage ΔV and TWR update live, with warnings when a design can't
+lift off or lacks the ~9,400 m/s LEO budget. Designs persist in
+localStorage and survive restarts. Launch time (dawn/day/dusk/night)
+is selectable on the title screen — night launches are floodlit.
+
 ## How to fly
 
 | Control | What it does |
 | --- | --- |
 | Throttle slider (right) + FULL / CUT | Engine throttle |
-| Hold **IGNITE / STAGE** (ring fills ~½ s) | Ignition, then stage separation |
+| Hold **IGNITE / STAGE** (ring fills ~½ s) | Starts the 4 s ignition auto-sequence (engines ramp at T−3, hold-downs release at T−0), then stage separation |
 | Joystick (left) | Pitch / yaw rate command; buttons below roll |
 | HOLD / PRO / RETRO | Attitude autopilot: hold attitude, track prograde, track retrograde |
 | Drag / pinch on the view | Orbit camera / zoom (zoom all the way out for the orbit map, or tap MAP) |
@@ -90,10 +108,20 @@ Simplified / approximated (deliberately, for the MVP):
 
 ## Tech
 
-- **Three.js** (vendored locally — the app is fully offline-capable) for
-  WebGL rendering: procedurally textured planet, clouds, fresnel
-  atmosphere shell, floating-origin scene graph so f32 precision holds at
-  planetary scale.
+- **Three.js** (vendored locally — the app is fully offline-capable) with
+  ACES filmic tonemapping, a procedural IBL environment (PMREM), real-time
+  shadows near the pad, a shader sky dome (sun disc, horizon haze, fades
+  to space with altitude), procedurally textured planet + clouds, fresnel
+  atmosphere shell, and a floating-origin scene graph so f32 precision
+  holds at planetary scale.
+- **Launch complex**: lattice service tower with umbilicals, animated
+  hold-down clamps, tank farm, lightning masts, floodlights (lit at
+  night/dusk), scorched concrete apron, cryo boil-off wisps, pooled
+  smoke billboards, layered engine plume (core/mid/outer + shock
+  diamonds in atmosphere) with a dynamic engine light.
+- **Craft compiler**: VAB designs compile to the same stage config the
+  physics flies; vehicle meshes are rebuilt procedurally from it (engine
+  cluster layouts, tank-derived stage lengths).
 - **Custom physics, not Rapier/Cannon** — a deliberate deviation from the
   brief: rigid-body game engines are built for contact dynamics at
   human scale and fight you at orbital scale (f32 state, no analytic
@@ -128,7 +156,6 @@ or vehicle config regress, it fails.
 - Docking and rendezvous (target vessel, RCS translation, approach HUD)
 - Moon + more bodies with patched-conic SOI transfers and transfer
   planning UI
-- VAB-style craft editor (part catalog, stack builder, ΔV/TWR readouts)
 - Save/load missions and quicksaves (localStorage, mindful of Safari caps)
 - Mission log / career progression (contracts, crew roster, program funds)
 - Planet rotation + launch azimuth, inclination targeting

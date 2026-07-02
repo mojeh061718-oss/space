@@ -4,6 +4,12 @@ import { Hud } from './hud.js';
 import { Navball } from './navball.js';
 import { AudioFx } from './audio.js';
 import { initControls } from './controls.js';
+import { Vab } from './vab.js';
+import { loadDesign, applyDesign, DEFAULT_DESIGN } from './craft.js';
+
+// Apply any saved craft design BEFORE the sim/scene read VEHICLE.
+const savedDesign = loadDesign();
+if (savedDesign) applyDesign(savedDesign);
 
 const canvas = document.getElementById('c');
 const sim = new Sim();
@@ -57,14 +63,19 @@ const callbacks = initControls(sim, view, {
     document.getElementById('met').classList.remove('paused');
     hud.hideEnd();
     callbacks.syncThrottle();
-    // Rebuild vessel visuals.
-    for (const g of view.stageGroups) view.meshRoot.add(g);
-    view.activeBottomY = view.stackBase;
-    view.meshRoot.position.y = -view.stackBase;
+    view.rebuildVehicle();
     lastStageIndex = 0;
     view.camDist = 0.14;
     view.mapMode = false;
     document.getElementById('btn-map').classList.remove('active');
+  },
+  onOpenVab: () => {
+    paused = false;
+    vab.show();
+  },
+  onTimeOfDay: (key) => {
+    view.applyPreset(key);
+    try { localStorage.setItem('meridian-tod', key); } catch { /* ok */ }
   },
   onToggleSound: () => {
     audio.init();
@@ -83,6 +94,23 @@ const callbacks = initControls(sim, view, {
   },
   onManualWarp: () => { autoWarp = false; },
 });
+
+// Vehicle assembly: closing with TO THE PAD resets onto the pad with the
+// new craft.
+const vab = new Vab(view, () => {
+  callbacks.onRestart();
+});
+vab.setDesign(savedDesign || DEFAULT_DESIGN);
+
+// Restore the launch-time preset.
+{
+  let tod = 'day';
+  try { tod = localStorage.getItem('meridian-tod') || 'day'; } catch { /* ok */ }
+  view.applyPreset(tod);
+  document.querySelectorAll('.chip.tod').forEach((b) => {
+    b.classList.toggle('active', b.dataset.tod === tod);
+  });
+}
 
 // Auto-warp: pick the warp level from time-to-apoapsis, drop out near it.
 function updateAutoWarp() {
@@ -142,7 +170,7 @@ async function requestWakeLock() {
 requestWakeLock();
 
 // Debug/automation handle (used by the headless smoke test).
-window.__meridian = { sim, view, hud, start: () => { started = true; } };
+window.__meridian = { sim, view, hud, vab, start: () => { started = true; } };
 
 let last = performance.now();
 let hudAccum = 0;

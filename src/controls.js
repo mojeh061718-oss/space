@@ -185,8 +185,28 @@ export function initControls(sim, view, callbacks = {}) {
     view.toggleMap();
     $('btn-map').classList.toggle('active', view.mapMode);
   });
-  $('btn-restart').addEventListener('click', () => callbacks.onRestart && callbacks.onRestart());
+  $('btn-restart').addEventListener('click', () => {
+    // Pre-launch this chip reads VAB and opens the assembly building.
+    if (sim.phase === 'prelaunch' && callbacks.onOpenVab) callbacks.onOpenVab();
+    else if (callbacks.onRestart) callbacks.onRestart();
+  });
   $('end-restart').addEventListener('click', () => callbacks.onRestart && callbacks.onRestart());
+  $('end-vab').addEventListener('click', () => {
+    if (callbacks.onRestart) callbacks.onRestart();
+    if (callbacks.onOpenVab) callbacks.onOpenVab();
+  });
+  $('btn-vab-open').addEventListener('click', () => {
+    document.getElementById('start-overlay').classList.add('hidden');
+    callbacks.onBegin && callbacks.onBegin();
+    callbacks.onOpenVab && callbacks.onOpenVab();
+  });
+  for (const btn of document.querySelectorAll('.chip.tod')) {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.chip.tod').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      callbacks.onTimeOfDay && callbacks.onTimeOfDay(btn.dataset.tod);
+    });
+  }
   $('btn-begin').addEventListener('click', () => {
     document.getElementById('start-overlay').classList.add('hidden');
     callbacks.onBegin && callbacks.onBegin();

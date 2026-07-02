@@ -51,7 +51,13 @@ export class Hud {
     const e = this.els;
     const flying = s.phase !== PHASE.PRELAUNCH;
 
-    e.met.textContent = (s.phase === PHASE.PRELAUNCH ? 'T−READY' : 'T+' + fmtTime(s.met));
+    e.met.textContent = s.phase === PHASE.PRELAUNCH ? 'T−READY'
+      : s.phase === PHASE.COUNTDOWN ? 'T−0:0' + Math.max(0, Math.ceil(s.countdown))
+      : 'T+' + fmtTime(s.met);
+    // The reset chip doubles as the assembly-building door before launch.
+    const rst = document.getElementById('btn-restart');
+    const preflight = s.phase === PHASE.PRELAUNCH;
+    if (rst.textContent !== (preflight ? 'VAB' : 'RST')) rst.textContent = preflight ? 'VAB' : 'RST';
     e.warp.textContent = s.warp + '×';
     e.alt.textContent = fmtDist(Math.max(0, s.altitude));
     e.vel.textContent = fmtSpeed(s.speed);
@@ -80,7 +86,8 @@ export class Hud {
     // Contextual buttons.
     const capsule = vehicle.isCapsuleOnly(s.vs);
     e.stageLabel.textContent = s.phase === PHASE.PRELAUNCH ? 'IGNITE' : 'STAGE';
-    e.stageBtn.classList.toggle('hidden', capsule || s.phase === PHASE.LANDED || s.phase === PHASE.LOST);
+    e.stageBtn.classList.toggle('hidden', capsule || s.phase === PHASE.LANDED
+      || s.phase === PHASE.LOST || s.phase === PHASE.COUNTDOWN);
     e.chuteBtn.classList.toggle('hidden', !capsule || s.vs.chuteArmed || s.phase !== PHASE.FLIGHT);
     // Pulse the chute button once inside its deployment envelope.
     const a = VEHICLE.aero;

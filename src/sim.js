@@ -41,7 +41,7 @@ const vCross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], 
 const vDot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
 export const SAS = { MANUAL: 'manual', HOLD: 'hold', PROGRADE: 'prograde', RETROGRADE: 'retrograde' };
-export const PHASE = { PRELAUNCH: 'prelaunch', FLIGHT: 'flight', LANDED: 'landed', LOST: 'lost' };
+export const PHASE = { PRELAUNCH: 'prelaunch', COUNTDOWN: 'countdown', FLIGHT: 'flight', LANDED: 'landed', LOST: 'lost' };
 
 // Body axes: ship "forward" (thrust direction / nose) is local +Y.
 const FORWARD = [0, 1, 0];
@@ -70,6 +70,8 @@ export class Sim {
     this.met = 0;          // mission elapsed time, s (counts from liftoff)
     this.clock = 0;        // total sim time
     this.phase = PHASE.PRELAUNCH;
+    this.countdown = 0;    // s remaining in the auto sequence
+    this.ignRamp = 0;      // 0..1 engine thrust ramp during ignition
     this.debris = [];
     this.messages = [];
     this.msgTotal = 0;       // monotonic count (messages array is capped)
@@ -116,11 +118,14 @@ export class Sim {
   }
 
   // Displayed throttle maps onto [minThrottle, 1] when nonzero (engines
-  // can't deep-throttle below their limit).
+  // can't deep-throttle below their limit). Engines only burn once the
+  // ignition sequence commands them (countdown ramp) or in free flight.
   get effThrottle() {
+    if (this.phase !== PHASE.FLIGHT && this.phase !== PHASE.COUNTDOWN) return 0;
     const st = this.stage;
     if (this.throttle <= 0 || !st || st.thrustVac === 0 || this.vs.prop[this.vs.stageIndex] <= 0) return 0;
-    return st.minThrottle + (1 - st.minThrottle) * this.throttle;
+    const base = st.minThrottle + (1 - st.minThrottle) * this.throttle;
+    return this.phase === PHASE.COUNTDOWN ? base * this.ignRamp : base;
   }
 
   get pitchDeg() {
@@ -135,6 +140,7 @@ export class Sim {
   }
 
   setWarp(level) {
+    if (level > 1 && this.phase === PHASE.COUNTDOWN) return false;
     if (level > MISSION.maxWarpAtmo) {
       if (this.altitude < 130_000 || this.effThrottle > 0 || this.phase !== PHASE.FLIGHT) {
         this.say('FIDO', 'Time compression above 4x requires coasting above 130 km.');
@@ -151,9 +157,10 @@ export class Sim {
         this.say('FLIGHT', 'Set throttle before ignition, pilot.');
         return;
       }
-      this.phase = PHASE.FLIGHT;
-      this.met = 0;
-      this.say('FLIGHT', 'Ignition sequence start. All engines at rated thrust — liftoff.');
+      this.phase = PHASE.COUNTDOWN;
+      this.countdown = 4;
+      this.warp = 1;
+      this.say('FLIGHT', 'Auto sequence start. Ignition in three.');
       return;
     }
     if (this.phase !== PHASE.FLIGHT) return;
@@ -177,6 +184,8 @@ export class Sim {
       throttle: 0, stage: null, facing: [0, 1, 0],
       ttl: 240,
       stageName: dropped.stage.name,
+      length: dropped.stage.length,
+      diameter: dropped.stage.diameter,
     });
     this.say('FLIGHT', `${dropped.stage.name} separation confirmed. Clean sep.`);
     if (vehicle.isCapsuleOnly(this.vs)) {
@@ -236,6 +245,17 @@ export class Sim {
   // ---- main update -------------------------------------------------------
   update(realDt) {
     if (this.phase === PHASE.LANDED || this.phase === PHASE.LOST) return;
+    if (this.phase === PHASE.COUNTDOWN) {
+      this.warp = 1;
+      this.countdown -= realDt;
+      this.ignRamp = this.countdown <= 3 ? Math.min(1, (3 - this.countdown) / 1.6) : 0;
+      if (this.countdown <= 0) {
+        this.phase = PHASE.FLIGHT;
+        this.met = 0;
+        this.ignRamp = 1;
+        this.say('FLIGHT', `Hold-down release — liftoff of ${VEHICLE.name}. Tower on your right.`);
+      }
+    }
     let simDt = realDt * this.warp;
     // Auto-drop warp when hitting atmosphere.
     if (this.warp > MISSION.maxWarpAtmo && (this.altitude < 125_000 || this.effThrottle > 0)) {
@@ -296,10 +316,11 @@ export class Sim {
 
     // Ground contact.
     const alt = this.altitude;
-    if (this.phase === PHASE.PRELAUNCH || alt <= 0.5) {
+    const held = this.phase === PHASE.PRELAUNCH || this.phase === PHASE.COUNTDOWN;
+    if (held || alt <= 0.5) {
       const vs = this.verticalSpeed;
-      if (vs <= 0 && (this.phase === PHASE.PRELAUNCH ? alt <= 4.6 : alt <= 0.5)) {
-        if (this.phase === PHASE.PRELAUNCH || (this.met < 10 && this.speed < 3)) {
+      if (vs <= 0 && (held ? alt <= 4.6 : alt <= 0.5)) {
+        if (held || (this.met < 10 && this.speed < 3)) {
           // Held on the pad.
           const R = PLANET.radius + 4.5;
           this.r = vHat(this.r).map((c) => c * R);

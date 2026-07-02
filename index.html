@@ -85,6 +85,22 @@
   <!-- attitude indicator -->
   <canvas id="navball" class="ui" width="96" height="96"></canvas>
 
+  <!-- vehicle assembly -->
+  <div id="vab-overlay" class="ui hidden">
+    <div id="vab-panel">
+      <h2>VEHICLE ASSEMBLY</h2>
+      <div id="vab-statbar" class="mono">
+        <div><span>MASS</span><b id="vab-mass">—</b></div>
+        <div><span>ΔV</span><b id="vab-dv">—</b></div>
+        <div><span>PAD TWR</span><b id="vab-twr">—</b></div>
+      </div>
+      <div id="vab-stages"></div>
+      <button id="vab-add" class="chip">+ BOOSTER STAGE</button>
+      <div id="vab-warn"></div>
+      <button id="vab-launch">TO THE PAD</button>
+    </div>
+  </div>
+
   <!-- start overlay -->
   <div id="start-overlay" class="overlay">
     <div class="panel">
@@ -102,7 +118,15 @@
       On the attitude ball: <span style="color:#43e97b">●</span> prograde,
       <span style="color:#ffa02e">✕</span> retrograde.</p>
       <p class="dim hidden" id="record-line"></p>
+      <div id="tod-row">
+        <span class="tod-label">LAUNCH TIME</span>
+        <button class="chip tod" data-tod="dawn">DAWN</button>
+        <button class="chip tod active" data-tod="day">DAY</button>
+        <button class="chip tod" data-tod="dusk">DUSK</button>
+        <button class="chip tod" data-tod="night">NIGHT</button>
+      </div>
       <button id="btn-begin">BEGIN MISSION</button>
+      <button id="btn-vab-open" class="secondary">VEHICLE ASSEMBLY</button>
     </div>
   </div>
 
@@ -113,6 +137,7 @@
       <p id="end-body"></p>
       <div id="end-stats"></div>
       <button id="end-restart">FLY AGAIN</button>
+      <button id="end-vab" class="secondary">VEHICLE ASSEMBLY</button>
     </div>
   </div>
 

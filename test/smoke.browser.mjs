@@ -44,13 +44,21 @@ await page.evaluate(() => {
   const { sim } = window.__meridian;
   sim.throttle = 1;
 });
-// Hold the stage button past its 550 ms arm time.
+// Hold the stage button past its 550 ms arm time, then ride out the 4 s
+// ignition auto-sequence.
 const box = await page.locator('#btn-stage').boundingBox();
 await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 await page.mouse.down();
 await page.waitForTimeout(750);
 await page.mouse.up();
-await page.waitForTimeout(2500);
+await page.waitForTimeout(2000);
+const midCount = await page.evaluate(() => window.__meridian.sim.phase);
+if (midCount !== 'countdown') {
+  console.error('FAIL: expected countdown phase after ignition hold, got ' + midCount);
+  process.exit(1);
+}
+// Software-GL frames are slow; poll for release instead of a fixed wait.
+await page.waitForFunction(() => window.__meridian.sim.phase === 'flight', null, { timeout: 60_000 });
 await page.screenshot({ path: 'test/shot-2-liftoff.png' });
 
 // Warp the sim ahead into a hand-flown ascent snapshot: inject state at
@@ -159,6 +167,40 @@ const afterReset = await page.evaluate(() => {
 console.log('after reset:', JSON.stringify(afterReset));
 if (afterReset.phase !== 'prelaunch' || afterReset.stage !== 0 || afterReset.meshes !== 3) {
   console.error('FAIL: reset did not restore vehicle');
+  process.exit(1);
+}
+
+// Vehicle assembly: open, add a booster stage, launch with the new craft.
+await page.setViewportSize({ width: 390, height: 844 });
+await page.evaluate(() => window.__meridian.vab.show());
+await page.waitForTimeout(800);
+await page.screenshot({ path: 'test/shot-8-vab.png' });
+await page.tap('#vab-add');
+await page.waitForTimeout(300);
+const vabState = await page.evaluate(() => {
+  const { vab } = window.__meridian;
+  return { designStages: vab.design.stages.length, warn: document.getElementById('vab-warn').textContent };
+});
+console.log('vab after add:', JSON.stringify(vabState));
+if (vabState.designStages !== 3) {
+  console.error('FAIL: VAB add-stage did not work');
+  process.exit(1);
+}
+await page.tap('#vab-launch');
+await page.waitForTimeout(500);
+const launched = await page.evaluate(async () => {
+  const { sim, view } = window.__meridian;
+  const { VEHICLE } = await import('./src/config.js');
+  return {
+    stages: VEHICLE.stages.length,
+    meshes: view.stageGroups.length,
+    phase: sim.phase,
+    dv: Math.round(sim.deltaV()),
+  };
+});
+console.log('after VAB launch:', JSON.stringify(launched));
+if (launched.stages !== 4 || launched.meshes !== 4 || launched.phase !== 'prelaunch' || launched.dv < 9000) {
+  console.error('FAIL: custom craft did not deploy to the pad correctly');
   process.exit(1);
 }
 
