@@ -11,7 +11,7 @@
 import * as THREE from '../vendor/three.module.min.js';
 import { PLANET, VEHICLE } from './config.js';
 import { sampleOrbitPath, pointAtAnomaly } from './orbit.js';
-import { makePlanetTexture, makeCloudTexture } from './planettex.js';
+import { makePlanetTexture, makePlanetRoughnessTexture, makeCloudTexture } from './planettex.js';
 
 const KM = 1 / 1000;
 const R_KM = PLANET.radius * KM;
@@ -19,26 +19,26 @@ const R_KM = PLANET.radius * KM;
 export const TIME_PRESETS = {
   dawn: {
     label: 'DAWN', el: 9, az: 105,
-    sunColor: 0xffbb77, sunI: 2.6, ambI: 0.3, hemiI: 0.22,
-    zenith: [0.06, 0.12, 0.34], horizon: [0.95, 0.62, 0.42], haze: [1.0, 0.75, 0.55],
-    floods: 0.4, starFloor: 0.12, exposure: 1.0,
+    sunColor: 0xffc182, sunI: 2.5, ambI: 0.36, hemiI: 0.3,
+    zenith: [0.10, 0.17, 0.48], horizon: [1.0, 0.63, 0.44], haze: [1.0, 0.78, 0.56],
+    floods: 0.4, starFloor: 0.12, exposure: 1.02,
   },
   day: {
     label: 'DAY', el: 48, az: 40,
-    sunColor: 0xfff2e0, sunI: 2.9, ambI: 0.34, hemiI: 0.26,
-    zenith: [0.10, 0.30, 0.62], horizon: [0.62, 0.78, 0.94], haze: [0.85, 0.92, 1.0],
-    floods: 0, starFloor: 0, exposure: 0.95,
+    sunColor: 0xfff4e2, sunI: 2.7, ambI: 0.42, hemiI: 0.42,
+    zenith: [0.13, 0.40, 0.88], horizon: [0.46, 0.74, 0.99], haze: [0.72, 0.89, 1.0],
+    floods: 0, starFloor: 0, exposure: 0.98,
   },
   dusk: {
     label: 'DUSK', el: 7, az: 255,
-    sunColor: 0xff8f4d, sunI: 2.7, ambI: 0.26, hemiI: 0.2,
-    zenith: [0.05, 0.08, 0.24], horizon: [0.98, 0.52, 0.30], haze: [1.0, 0.62, 0.40],
-    floods: 0.8, starFloor: 0.2, exposure: 1.0,
+    sunColor: 0xff9557, sunI: 2.6, ambI: 0.32, hemiI: 0.26,
+    zenith: [0.10, 0.11, 0.40], horizon: [1.0, 0.52, 0.33], haze: [1.0, 0.64, 0.42],
+    floods: 0.8, starFloor: 0.2, exposure: 1.02,
   },
   night: {
     label: 'NIGHT', el: -16, az: 250,
     sunColor: 0x93a8d8, sunI: 0.35, ambI: 0.12, hemiI: 0.09,
-    zenith: [0.004, 0.007, 0.018], horizon: [0.015, 0.03, 0.06], haze: [0.05, 0.08, 0.14],
+    zenith: [0.006, 0.012, 0.035], horizon: [0.02, 0.05, 0.11], haze: [0.07, 0.12, 0.22],
     floods: 1.0, starFloor: 0.55, exposure: 1.12,
   },
 };
@@ -80,8 +80,10 @@ export class SceneView {
     this.scene.add(this.sun.target);
     this.amb = new THREE.AmbientLight(0x51637a, 0.9);
     this.scene.add(this.amb);
-    this.hemi = new THREE.HemisphereLight(0xcfe0ff, 0x3a4a58, 0.65);
+    this.hemi = new THREE.HemisphereLight(0xcfe0ff, 0x4a5f52, 0.65);
     this.scene.add(this.hemi);
+    this.rim = new THREE.DirectionalLight(0x9fc4ff, 0.55);
+    this.scene.add(this.rim);
     this.sunDir = new THREE.Vector3(1, 0, 0);
 
     // World group (floating origin).
@@ -189,7 +191,7 @@ export class SceneView {
           col += haze * 0.2 * exp(-abs(e) * 10.0);
           // Sun disc + glow.
           float disc = smoothstep(0.99988, 0.99997, sd);
-          float glow = pow(max(sd, 0.0), 320.0) * 0.9 + pow(max(sd, 0.0), 24.0) * 0.16;
+          float glow = pow(max(sd, 0.0), 280.0) * 1.1 + pow(max(sd, 0.0), 12.0) * 0.2;
           col += sunColor * (disc * 6.0 + glow);
           gl_FragColor = vec4(col, fade);
         }`,
@@ -204,8 +206,11 @@ export class SceneView {
     const tex = new THREE.CanvasTexture(makePlanetTexture(2048, 1024));
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;
+    const roughTex = new THREE.CanvasTexture(makePlanetRoughnessTexture());
     const geo = new THREE.SphereGeometry(R_KM, 128, 96);
-    const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9, metalness: 0, envMapIntensity: 0.25 });
+    const mat = new THREE.MeshStandardMaterial({
+      map: tex, roughnessMap: roughTex, roughness: 1, metalness: 0, envMapIntensity: 0.3,
+    });
     this.planet = new THREE.Mesh(geo, mat);
     this.world.add(this.planet);
 
@@ -220,7 +225,7 @@ export class SceneView {
     // Atmosphere rim glow: fresnel on a back-side shell.
     const atmoMat = new THREE.ShaderMaterial({
       transparent: true, side: THREE.BackSide, depthWrite: false,
-      uniforms: { c: { value: new THREE.Color(0x4d9fff) } },
+      uniforms: { c: { value: new THREE.Color(0x5ec8ff) } },
       vertexShader: `
         varying vec3 vN; varying vec3 vP;
         void main(){ vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position,1.0); vP = mv.xyz; gl_Position = projectionMatrix * mv; }`,
@@ -260,24 +265,24 @@ export class SceneView {
     const c = document.createElement('canvas');
     c.width = c.height = 512;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = '#84878b';
-    ctx.fillRect(0, 0, 512, 512);
-    const img = ctx.getImageData(0, 0, 512, 512);
-    for (let i = 0; i < img.data.length; i += 4) {
-      const nMag = (Math.random() - 0.5) * 18;
-      img.data[i] += nMag; img.data[i + 1] += nMag; img.data[i + 2] += nMag;
+    // Clean stylized pad tiles with a subtle checker and thin joints.
+    for (let ty = 0; ty < 8; ty++) {
+      for (let tx = 0; tx < 8; tx++) {
+        const even = (tx + ty) % 2 === 0;
+        ctx.fillStyle = even ? '#aeb4bc' : '#a4abb4';
+        ctx.fillRect(tx * 64, ty * 64, 64, 64);
+      }
     }
-    ctx.putImageData(img, 0, 0);
-    ctx.strokeStyle = 'rgba(40,42,46,0.55)';
+    ctx.strokeStyle = 'rgba(60, 66, 76, 0.5)';
     ctx.lineWidth = 2;
     for (let i = 0; i <= 8; i++) {
       ctx.beginPath(); ctx.moveTo(i * 64, 0); ctx.lineTo(i * 64, 512); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0, i * 64); ctx.lineTo(512, i * 64); ctx.stroke();
     }
-    // Scorch marks near the middle.
-    const g = ctx.createRadialGradient(256, 256, 10, 256, 256, 140);
-    g.addColorStop(0, 'rgba(25,22,20,0.85)');
-    g.addColorStop(1, 'rgba(25,22,20,0)');
+    // Light scorch ring under the mount — story detail, kept subtle.
+    const g = ctx.createRadialGradient(256, 256, 8, 256, 256, 90);
+    g.addColorStop(0, 'rgba(52, 48, 46, 0.5)');
+    g.addColorStop(1, 'rgba(52, 48, 46, 0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 512, 512);
     return new THREE.CanvasTexture(c);
@@ -287,18 +292,16 @@ export class SceneView {
     const c = document.createElement('canvas');
     c.width = c.height = 512;
     const ctx = c.getContext('2d');
-    ctx.fillStyle = '#31452c';
-    ctx.fillRect(0, 0, 512, 512);
-    const img = ctx.getImageData(0, 0, 512, 512);
-    for (let i = 0; i < img.data.length; i += 4) {
-      const nMag = (Math.random() - 0.5) * 14;
-      img.data[i] += nMag * 0.7; img.data[i + 1] += nMag; img.data[i + 2] += nMag * 0.5;
+    // Saturated lawn with wide mowed stripes.
+    for (let i = 0; i < 16; i++) {
+      ctx.fillStyle = i % 2 === 0 ? '#3f9a4a' : '#379044';
+      ctx.fillRect(0, i * 32, 512, 32);
     }
-    ctx.putImageData(img, 0, 0);
-    for (let i = 0; i < 60; i++) {
-      ctx.fillStyle = `rgba(${90 + Math.random() * 40},${80 + Math.random() * 30},50,0.12)`;
+    // Soft meadow patches for organic variety.
+    for (let i = 0; i < 26; i++) {
+      ctx.fillStyle = `rgba(${120 + Math.random() * 40}, ${190 + Math.random() * 30}, 90, 0.10)`;
       ctx.beginPath();
-      ctx.ellipse(Math.random() * 512, Math.random() * 512, 8 + Math.random() * 30, 6 + Math.random() * 20, Math.random() * 3, 0, 7);
+      ctx.ellipse(Math.random() * 512, Math.random() * 512, 20 + Math.random() * 60, 14 + Math.random() * 40, Math.random() * 3, 0, 7);
       ctx.fill();
     }
     return new THREE.CanvasTexture(c);
@@ -550,12 +553,14 @@ export class SceneView {
     this.stageGroups = [];
 
     const white = new THREE.MeshPhysicalMaterial({
-      color: 0xf4f6f8, roughness: 0.32, metalness: 0.06, clearcoat: 0.5, clearcoatRoughness: 0.35,
+      color: 0xffffff, roughness: 0.22, metalness: 0.04, clearcoat: 0.7, clearcoatRoughness: 0.25,
     });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x22262b, roughness: 0.55, metalness: 0.4 });
-    const bell = new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.35, metalness: 0.85 });
-    const shield = new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.8 });
-    const finMat = new THREE.MeshStandardMaterial({ color: 0x4a5158, roughness: 0.5, metalness: 0.55 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x1f2833, roughness: 0.45, metalness: 0.35 });
+    const bell = new THREE.MeshStandardMaterial({ color: 0x333940, roughness: 0.3, metalness: 0.85 });
+    const shield = new THREE.MeshStandardMaterial({ color: 0x8a5a33, roughness: 0.65 });
+    const finMat = new THREE.MeshStandardMaterial({ color: 0x39424c, roughness: 0.45, metalness: 0.5 });
+    const accents = [0xff7a29, 0x37b6ff, 0xffd166, 0x9d7bff].map((c) =>
+      new THREE.MeshStandardMaterial({ color: c, roughness: 0.3, metalness: 0.15 }));
 
     const stages = VEHICLE.stages;
     this.stackLens = stages.map((s) => s.length * KM);
@@ -618,6 +623,12 @@ export class SceneView {
         const inter = new THREE.Mesh(new THREE.CylinderGeometry(rad * 1.004, rad * 1.004, L * 0.05, 28), dark);
         inter.position.y = y + L - L * 0.025;
         g.add(inter);
+        const stripe = new THREE.Mesh(
+          new THREE.CylinderGeometry(rad * 1.003, rad * 1.003, L * 0.035, 28),
+          accents[idx % accents.length],
+        );
+        stripe.position.y = y + L * 0.885;
+        g.add(stripe);
         if (idx === 0) {
           const finGeo = new THREE.BoxGeometry(rad * 0.22, L * 0.04, rad * 0.06);
           for (let i = 0; i < 4; i++) {
@@ -646,9 +657,9 @@ export class SceneView {
       this.plume.add(m);
       return m;
     };
-    this.plumeCore = mkCone(0xfff6da, 0.95, THREE.NormalBlending);
-    this.plumeMid = mkCone(0xffa245, 0.7);
-    this.plumeOuter = mkCone(0xff6a1f, 0.28);
+    this.plumeCore = mkCone(0xfff3b0, 0.95, THREE.NormalBlending);
+    this.plumeMid = mkCone(0xffb347, 0.75);
+    this.plumeOuter = mkCone(0xff7b2e, 0.3);
     this.shockDiamonds = [];
     for (let i = 0; i < 3; i++) {
       const d = new THREE.Mesh(
@@ -809,6 +820,7 @@ export class SceneView {
 
     // Sun light + shadows follow the vessel (scene origin).
     this.sun.position.copy(this.sunDir).multiplyScalar(5);
+    this.rim.position.set(-this.sunDir.x, this.sunDir.y * 0.5 + 0.6, -this.sunDir.z).multiplyScalar(5);
     this.sun.target.position.set(0, 0, 0);
     this.sun.castShadow = sim.altitude < 2_500 && this.preset.el > 3;
 
@@ -850,7 +862,7 @@ export class SceneView {
       const vac = Math.min(1, alt / 60_000);
       const len = this.plumeL * (0.35 + thr * 0.85) * (1 + vac * 1.9) * flick;
       const r0 = this.plumeR * (0.75 + 0.25 * thr) * (1 + vac * 2.2);
-      this.plumeCore.scale.set(r0 * 0.45, len * 0.55, r0 * 0.45);
+      this.plumeCore.scale.set(r0 * 0.58, len * 0.6, r0 * 0.58);
       this.plumeCore.position.y = bottom - len * 0.3;
       this.plumeMid.scale.set(r0 * 0.8, len, r0 * 0.8);
       this.plumeMid.position.y = bottom - len / 2;
