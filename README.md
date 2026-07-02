@@ -9,7 +9,11 @@ mission-control tone — no cartoon aliens.
 Everything runs client-side: no backend, no build step, playable offline
 after the first load.
 
-## Run it
+**Play it now:** https://mojeh061718-oss.github.io/space/ — deployed
+from the `gh-pages` branch by `.github/workflows/deploy-pages.yml` on
+every push (tests must pass first).
+
+## Run it locally
 
 ```bash
 npm run serve          # any static file server works
