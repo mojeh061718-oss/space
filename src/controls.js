@@ -164,11 +164,23 @@ export function initControls(sim, view, callbacks = {}) {
     const i = levels.indexOf(sim.warp);
     const next = levels[Math.min(levels.length - 1, Math.max(0, (i < 0 ? 0 : i) + dir))];
     sim.setWarp(next);
+    if (callbacks.onManualWarp) callbacks.onManualWarp(); // cancels auto-warp
   };
   $('warp-down').addEventListener('click', () => warpStep(-1));
   $('warp-up').addEventListener('click', () => warpStep(1));
 
+  $('btn-wap').addEventListener('click', () => callbacks.onWarpToAp && callbacks.onWarpToAp());
+
   // ---- misc ----------------------------------------------------------------
+  $('btn-snd').addEventListener('click', () => {
+    const muted = callbacks.onToggleSound ? callbacks.onToggleSound() : false;
+    $('btn-snd').classList.toggle('active', !muted);
+    $('btn-snd').textContent = muted ? 'MUTE' : 'SND';
+  });
+  $('met').addEventListener('click', () => {
+    const paused = callbacks.onTogglePause ? callbacks.onTogglePause() : false;
+    $('met').classList.toggle('paused', paused);
+  });
   $('btn-map').addEventListener('click', () => {
     view.toggleMap();
     $('btn-map').classList.toggle('active', view.mapMode);

@@ -75,6 +75,33 @@ await page.evaluate(() => { window.__meridian.view.camDist = 16000; });
 await page.waitForTimeout(800);
 await page.screenshot({ path: 'test/shot-4-map.png' });
 
+// Coasting in orbit: warp-to-AP button should appear and engage.
+await page.evaluate(() => {
+  const { sim } = window.__meridian;
+  const R = 6371000, mu = 3.986004418e14;
+  const r = R + 180_000;
+  const vCirc = Math.sqrt(mu / r);
+  sim.r = [r, 0, 0];
+  sim.v = [0, 0, vCirc * 1.01]; // slightly elliptical so tToAp is meaningful
+  sim.throttle = 0;
+  sim.sas = 'prograde';
+});
+await page.waitForTimeout(1200);
+const wapVisible = await page.evaluate(() => !document.getElementById('btn-wap').classList.contains('hidden'));
+if (!wapVisible) {
+  console.error('FAIL: warp-to-AP button not shown while coasting in orbit');
+  process.exit(1);
+}
+await page.tap('#btn-wap');
+await page.waitForTimeout(1200);
+const warpNow = await page.evaluate(() => window.__meridian.sim.warp);
+console.log('auto-warp engaged, warp =', warpNow);
+if (warpNow <= 1) {
+  console.error('FAIL: auto-warp did not raise warp');
+  process.exit(1);
+}
+await page.screenshot({ path: 'test/shot-7-orbit-coast.png' });
+
 // Capsule descending under chute: exercises staging visuals + canopy.
 await page.evaluate(() => {
   const { sim, view } = window.__meridian;

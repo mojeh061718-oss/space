@@ -28,8 +28,9 @@
       <button id="warp-up" class="chip">+</button>
     </div>
     <div class="top-right">
+      <button id="btn-snd" class="chip wide">SND</button>
       <button id="btn-map" class="chip wide">MAP</button>
-      <button id="btn-restart" class="chip wide">RESET</button>
+      <button id="btn-restart" class="chip wide">RST</button>
     </div>
   </div>
 
@@ -43,7 +44,7 @@
     <div class="row opt"><span>V/S</span><b id="v-vsi">—</b></div>
     <div class="row sep"><span>AP</span><b id="v-ap" class="c-ap">—</b></div>
     <div class="row"><span>PE</span><b id="v-pe" class="c-pe">—</b></div>
-    <div class="row opt"><span>→AP</span><b id="v-tap">—</b></div>
+    <div class="row opt"><span id="lbl-tap">→AP</span><b id="v-tap">—</b></div>
     <div class="row sep"><span>TWR</span><b id="v-twr">—</b></div>
     <div class="row"><span>ΔV</span><b id="v-dv">—</b></div>
     <div class="row opt"><span>G</span><b id="v-g">—</b></div>
@@ -56,6 +57,7 @@
 
   <!-- right controls: throttle + stage -->
   <div id="right-ui" class="ui">
+    <button id="btn-wap" class="chip hidden">⇥ AP</button>
     <button id="thr-full" class="chip">FULL</button>
     <div id="throttle">
       <div id="throttle-fill"></div>
@@ -75,10 +77,13 @@
     </div>
     <div id="joy"><div id="joy-knob"></div></div>
     <div id="roll">
-      <button id="roll-l" class="chip">⟲ ROLL</button>
-      <button id="roll-r" class="chip">ROLL ⟳</button>
+      <button id="roll-l" class="chip roll-chip">⟲</button>
+      <button id="roll-r" class="chip roll-chip">⟳</button>
     </div>
   </div>
+
+  <!-- attitude indicator -->
+  <canvas id="navball" class="ui" width="96" height="96"></canvas>
 
   <!-- start overlay -->
   <div id="start-overlay" class="overlay">
@@ -93,7 +98,10 @@
         <li>At apoapsis 200+ km, <b>CUT</b> throttle, coast to AP, then burn <b>PRO</b>grade until PE is above 140 km.</li>
         <li>To come home: burn <b>RETRO</b> until PE drops to ~30 km, stage the capsule off, hold RETRO, chutes below 7 km.</li>
       </ul>
-      <p class="dim">Drag to orbit the camera, pinch to zoom. Hold the joystick to steer.</p>
+      <p class="dim">Drag to orbit the camera, pinch to zoom. Hold the joystick to steer.
+      On the attitude ball: <span style="color:#43e97b">●</span> prograde,
+      <span style="color:#ffa02e">✕</span> retrograde.</p>
+      <p class="dim hidden" id="record-line"></p>
       <button id="btn-begin">BEGIN MISSION</button>
     </div>
   </div>

@@ -72,6 +72,7 @@ export class Sim {
     this.phase = PHASE.PRELAUNCH;
     this.debris = [];
     this.messages = [];
+    this.msgTotal = 0;       // monotonic count (messages array is capped)
     this.flags = new Set();
     this.maxQSeen = 0; this.maxQFalling = false;
     this.peakHeat = 0;
@@ -84,6 +85,7 @@ export class Sim {
 
   say(who, text) {
     this.messages.push({ who, text, t: this.clock });
+    this.msgTotal++;
     if (this.messages.length > 60) this.messages.shift();
   }
   once(flag, who, text) {

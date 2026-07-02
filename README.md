@@ -31,7 +31,11 @@ visit (service-worker precache).
 | HOLD / PRO / RETRO | Attitude autopilot: hold attitude, track prograde, track retrograde |
 | Drag / pinch on the view | Orbit camera / zoom (zoom all the way out for the orbit map, or tap MAP) |
 | − / + (top) | Time warp 1× → 1000× (above 4× only while coasting above 130 km) |
+| ⇥ AP (right column) | Auto-warp to apoapsis; drops back to 1× as you arrive |
+| Attitude ball (bottom center) | Artificial horizon + pitch ladder; ● prograde, ✕ retrograde |
 | CHUTE | Deploy mains (below 7 km and 300 m/s; auto-deploys at 2.5 km as backup) |
+| SND | Toggle sound (engine rumble, aero roar, staging, radio blips — all synthesized) |
+| Tap the mission clock | Pause / resume |
 
 **Nominal mission:** full throttle, ignite → climb vertically to ~1 km →
 pitch east gradually (~45° by 12 km, following prograde after that) → at
@@ -102,6 +106,11 @@ Simplified / approximated (deliberately, for the MVP):
   `apple-touch-icon`), cache-first service worker, `viewport-fit=cover`
   with safe-area insets, 100% Pointer-Events touch controls, wake-lock
   where supported. No desktop-only APIs assumed.
+- **Procedural audio** (Web Audio, no assets): engine noise scales with
+  throttle and ambient air density, aero roar with dynamic pressure and
+  reentry heating; AudioContext unlocks on first tap per iOS rules.
+- **Best-mission record** persists in localStorage (guarded for Safari
+  private mode) and shows on the title screen.
 
 ## Tests
 

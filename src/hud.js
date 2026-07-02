@@ -32,7 +32,7 @@ export class Hud {
     this.els = {
       met: $('met'), warp: $('warp-val'),
       alt: $('v-alt'), vel: $('v-vel'), vsi: $('v-vsi'),
-      ap: $('v-ap'), pe: $('v-pe'), tap: $('v-tap'),
+      ap: $('v-ap'), pe: $('v-pe'), tap: $('v-tap'), tapLbl: $('lbl-tap'),
       twr: $('v-twr'), dv: $('v-dv'), g: $('v-g'),
       stage: $('v-stage'), fuelbar: $('fuel-fill'),
       pitch: $('v-pitch'),
@@ -61,7 +61,11 @@ export class Hud {
     const validOrbit = flying && s.speed > 100;
     e.ap.textContent = validOrbit && !el.hyperbolic ? fmtDist(el.apoapsis) : (validOrbit ? 'ESC' : '—');
     e.pe.textContent = validOrbit ? fmtDist(el.periapsis) : '—';
-    e.tap.textContent = validOrbit && Number.isFinite(el.tToAp) ? fmtTime(el.tToAp) : '—';
+    // Show whichever apsis comes first.
+    const showPe = validOrbit && Number.isFinite(el.tToPe) && vs < 0 && el.tToPe < el.tToAp;
+    e.tapLbl.textContent = showPe ? '→PE' : '→AP';
+    const tNext = showPe ? el.tToPe : el.tToAp;
+    e.tap.textContent = validOrbit && Number.isFinite(tNext) ? fmtTime(tNext) : '—';
 
     e.twr.textContent = s.stage.thrustVac > 0 && s.vs.prop[s.vs.stageIndex] > 0 ? s.twr.toFixed(2) : '—';
     e.dv.textContent = Math.round(s.deltaV()) + ' m/s';
@@ -78,12 +82,19 @@ export class Hud {
     e.stageLabel.textContent = s.phase === PHASE.PRELAUNCH ? 'IGNITE' : 'STAGE';
     e.stageBtn.classList.toggle('hidden', capsule || s.phase === PHASE.LANDED || s.phase === PHASE.LOST);
     e.chuteBtn.classList.toggle('hidden', !capsule || s.vs.chuteArmed || s.phase !== PHASE.FLIGHT);
+    // Pulse the chute button once inside its deployment envelope.
+    const a = VEHICLE.aero;
+    e.chuteBtn.classList.toggle('ready',
+      capsule && !s.vs.chuteArmed && s.altitude < a.chuteDeployAlt && s.speed < a.chuteDeploySpeed);
 
-    // Message feed.
-    if (s.messages.length !== this.lastMsgCount) {
-      const fresh = s.messages.slice(this.lastMsgCount === 0 ? -1 : this.lastMsgCount - s.messages.length);
-      this.lastMsgCount = s.messages.length;
-      for (const m of fresh.slice(-3)) this.pushMsg(m);
+    // Message feed (msgTotal is monotonic; the array itself is capped).
+    if (s.msgTotal !== this.lastMsgCount) {
+      const fresh = Math.min(3, s.msgTotal - this.lastMsgCount);
+      this.lastMsgCount = s.msgTotal;
+      for (const m of s.messages.slice(-fresh)) {
+        this.pushMsg(m);
+        if (this.audio) this.audio.blip();
+      }
     }
 
     // End screen.

@@ -48,7 +48,7 @@ export class SceneView {
   }
 
   buildPlanet() {
-    const tex = new THREE.CanvasTexture(makePlanetTexture());
+    const tex = new THREE.CanvasTexture(makePlanetTexture(2048, 1024));
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 4;
     const geo = new THREE.SphereGeometry(R_KM, 128, 96);
@@ -133,7 +133,60 @@ export class SceneView {
       arm.position.set(0.016 * i, 0, 0.013);
       this.pad.add(arm);
     }
+    // Launch smoke: pooled billboards that drift out from the plinth.
+    const sc = document.createElement('canvas');
+    sc.width = sc.height = 64;
+    const sctx = sc.getContext('2d');
+    const grad = sctx.createRadialGradient(32, 32, 4, 32, 32, 30);
+    grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+    grad.addColorStop(0.6, 'rgba(235,235,235,0.45)');
+    grad.addColorStop(1, 'rgba(230,230,230,0)');
+    sctx.fillStyle = grad;
+    sctx.fillRect(0, 0, 64, 64);
+    const smokeTex = new THREE.CanvasTexture(sc);
+    this.smoke = [];
+    for (let i = 0; i < 22; i++) {
+      const mat = new THREE.SpriteMaterial({ map: smokeTex, transparent: true, opacity: 0, depthWrite: false });
+      const sp = new THREE.Sprite(mat);
+      sp.visible = false;
+      this.pad.add(sp);
+      this.smoke.push({ sp, life: 0, max: 1, vel: [0, 0, 0] });
+    }
+
     this.scene.add(this.pad);
+  }
+
+  updateSmoke(sim, dt) {
+    const spawning = sim.effThrottle > 0.05 && sim.altitude < 260
+      && (sim.phase === 'flight' || sim.phase === 'prelaunch');
+    let toSpawn = spawning ? 2 : 0;
+    for (const s of this.smoke) {
+      if (s.life <= 0) {
+        if (toSpawn > 0) {
+          toSpawn--;
+          s.max = 2 + Math.random() * 1.5;
+          s.life = s.max;
+          const a = Math.random() * Math.PI * 2;
+          const speed = 0.015 + Math.random() * 0.03; // km/s lateral
+          s.vel = [0.004 + Math.random() * 0.006, Math.cos(a) * speed, Math.sin(a) * speed];
+          // Pad-local: +X is up; start at the plinth.
+          s.sp.position.set(0.004, (Math.random() - 0.5) * 0.01, (Math.random() - 0.5) * 0.01);
+          s.sp.visible = true;
+        } else if (s.sp.visible) {
+          s.sp.visible = false;
+        }
+        continue;
+      }
+      s.life -= dt;
+      const age = 1 - s.life / s.max;
+      s.sp.position.x += s.vel[0] * dt;
+      s.sp.position.y += s.vel[1] * dt;
+      s.sp.position.z += s.vel[2] * dt;
+      s.vel = s.vel.map((v) => v * (1 - dt * 1.2));
+      const size = 0.012 + age * 0.05;
+      s.sp.scale.set(size, size, 1);
+      s.sp.material.opacity = Math.min(age * 6, 1) * (1 - age) * 0.75;
+    }
   }
 
   buildRocket() {
@@ -158,18 +211,31 @@ export class SceneView {
     const body1 = new THREE.Mesh(new THREE.CylinderGeometry(rad, rad, L1, 24), white);
     body1.position.y = base + L1 / 2;
     g1.add(body1);
-    for (let i = 0; i < 4; i++) {
-      const noz = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.16, rad * 0.34, L1 * 0.05, 12), dark);
-      const a = (i / 4) * Math.PI * 2;
-      noz.position.set(Math.cos(a) * rad * 0.55, base - L1 * 0.02, Math.sin(a) * rad * 0.55);
+    // Octaweb: ring of 8 engines plus one center.
+    const nozGeo = new THREE.CylinderGeometry(rad * 0.10, rad * 0.21, L1 * 0.035, 10);
+    for (let i = 0; i < 9; i++) {
+      const noz = new THREE.Mesh(nozGeo, dark);
+      const a = (i / 8) * Math.PI * 2;
+      const rr = i < 8 ? rad * 0.62 : 0;
+      noz.position.set(Math.cos(a) * rr, base - L1 * 0.017, Math.sin(a) * rr);
       g1.add(noz);
     }
-    const nozC = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.16, rad * 0.34, L1 * 0.05, 12), dark);
-    nozC.position.y = base - L1 * 0.02;
-    g1.add(nozC);
+    const skirt = new THREE.Mesh(new THREE.CylinderGeometry(rad * 1.01, rad * 1.03, L1 * 0.045, 24), dark);
+    skirt.position.y = base + L1 * 0.022;
+    g1.add(skirt);
     const inter = new THREE.Mesh(new THREE.CylinderGeometry(rad * 1.002, rad * 1.002, L1 * 0.06, 24), dark);
     inter.position.y = base + L1 - L1 * 0.03;
     g1.add(inter);
+    // Grid fins near the top of stage I.
+    const finGeo = new THREE.BoxGeometry(rad * 0.22, L1 * 0.035, rad * 0.06);
+    const finMat = new THREE.MeshStandardMaterial({ color: 0x4a5158, roughness: 0.55, metalness: 0.5 });
+    for (let i = 0; i < 4; i++) {
+      const fin = new THREE.Mesh(finGeo, finMat);
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      fin.position.set(Math.cos(a) * rad * 1.08, base + L1 * 0.92, Math.sin(a) * rad * 1.08);
+      fin.rotation.y = -a;
+      g1.add(fin);
+    }
     this.meshRoot.add(g1);
     this.stageGroups.push(g1);
 
@@ -330,6 +396,17 @@ export class SceneView {
     this.camera.up.copy(up);
     this.camera.lookAt(target);
 
+    // Camera shake: engine vibration near the pad, buffet at high dynamic
+    // pressure, rattle through reentry heating. View-only.
+    const shake = (sim.altitude < 600 ? sim.effThrottle * 0.7 : 0)
+      + Math.min(1, (sim.qDyn || 0) / 35_000) * (0.35 + sim.effThrottle * 0.4)
+      + Math.min(1, (sim.heat || 0) / 4e9) * 0.6;
+    if (shake > 0.02 && this.camDist < 2) {
+      const amp = 0.00045 * shake * Math.min(1, this.camDist / 0.3);
+      this.camera.position.addScaledVector(e1, (Math.random() - 0.5) * amp);
+      this.camera.position.addScaledVector(e2, (Math.random() - 0.5) * amp);
+    }
+
     this.sun.position.copy(this.sunDir).multiplyScalar(10000);
 
     // Sky color and stars by altitude.
@@ -344,6 +421,7 @@ export class SceneView {
     this.pad.visible = padVisible;
     if (padVisible) {
       this.pad.position.set(PLANET.radius * KM - px, -py, -pz);
+      this.updateSmoke(sim, dtReal);
     }
 
     // Plume.
